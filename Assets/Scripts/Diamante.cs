@@ -12,7 +12,7 @@ public class Diamante : MonoBehaviour
     {
         pScript = FindObjectOfType<PlayerScript2>();
     }
-    private void OnTriggerEnter2D(Collider2D collision)
+    private void OnTriggerEnter2D(Collider2D collision) //Quando entra em colisão com o jogador, reseta o dash. 
     {
         if (collision.tag == "Player" && ativo)
         {
@@ -21,24 +21,24 @@ public class Diamante : MonoBehaviour
                 StartCoroutine("EsperaDashTerminar");
                 return;
             }
-            pScript.canDash = true;
+            pScript.ResetDash();
             ativo = false;
             sprite.SetActive(ativo);
-            Invoke("ResetaDiamante", time);
+            Invoke("ResetaDiamante", time); //O método Invoke chama uma função após um tempo (segundo parâmetro)
         }
     }
-    private void ResetaDiamante()
+    private void ResetaDiamante() //Após um tempo, essa função é chamada, reaparecendo o cristal
     {
         ativo = true;
         sprite.SetActive(ativo);
     }
 
-    IEnumerator EsperaDashTerminar()
+    IEnumerator EsperaDashTerminar() //Caso o jogador dê o dash em cima do cristal, ele espera o jogador perder o dash para repor. 
     {
         yield return new WaitForSeconds(timeWaitDash);
         if (!pScript.canDash)
         {
-            pScript.canDash = true;
+            pScript.ResetDash();
             ativo = false;
             sprite.SetActive(ativo);
             Invoke("ResetaDiamante", time);

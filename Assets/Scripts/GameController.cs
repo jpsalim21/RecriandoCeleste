@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+//Esse script é chamado pelo botão do menu inicial, mudando a cena. 
 public class GameController : MonoBehaviour
 {
     // Start is called before the first frame update

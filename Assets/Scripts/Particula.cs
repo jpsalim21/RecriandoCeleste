@@ -5,7 +5,7 @@ using UnityEngine;
 public class Particula : MonoBehaviour
 {
     ParticleSystem particula;
-    [SerializeField] Vector2 offset;
+    [SerializeField] Vector2 offset; //É aumentado na posição final. Assim, temos um controle melhor de onde vai aparecer. 
 
     void Start()
     {
@@ -17,13 +17,13 @@ public class Particula : MonoBehaviour
     {
         
     }
-    public void PlayParticula(Vector2 pos)
+    public void PlayParticula(Vector2 pos) //Coloca a partícula em uma posição e faz ela iniciar. 
     {
         pos += offset;
         transform.position = pos;
         particula.Play();
     }
-    public void RotateParticula(Vector2 dir, Vector2 pos)
+    public void RotateParticula(Vector2 dir, Vector2 pos) //Coloca a partícula em uma posição, rotaciona ela e faz ela iniciar. 
     {
         pos += offset;
         transform.position = pos;

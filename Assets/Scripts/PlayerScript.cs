@@ -2,46 +2,46 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+//Script feito durante o minicurso
 public class PlayerScript : MonoBehaviour
 {
-    //Script que será ensinado durante o minicurso
-
-    [Header("Movimentacao Padrao")]
-    [SerializeField] LayerMask groundLayer;
     public float velocidade;
-    public float jumpForce;
-    public float dashForce;
-    public float dashTime;
-    public float wallSpeed;
-    public float climbTime;
-    public float wallJumpTime;
+    public float forcaPulo;
 
-    [Header("Booleanas de controle")]
-    public bool dashing = false;
-    public bool canDash = true;
-    public bool wall = false;
-    public bool pulando = false;
-    public bool mover = true;
-    public bool chao = true;
-    public bool parede = false;
-
-    [Header("Melhorar Respostas do jogo")]
-    public float respostaTime;
-    public float coyoteTime;
-    public float dashRespostaTime;
-    public float wallJumpRespostaTime;
-
-    [Header("Controle no ar da personagem")]
-    public float wallJumpLerp;
-    public float fallGravityMultiplier;
-    public float midFallGravityMultiplier;
-
-
-    float respostaTimeElapsed = 0, coyoteTimeElapsed = 0, climbTimeElapsed = 0, dashRespostaTimeElapsed = 0;
+    float direcao;
     Rigidbody2D rb;
     BoxCollider2D col;
-    float direction, directionY;
-    Vector2 directionVector;
+    public LayerMask layerChao;
+    bool noChao;
+
+    bool movimentacaoPadrao = true;
+    bool podeDarDash = true;
+    bool dashing = false;
+    public float forcaDash;
+    public float tempoDash;
+    Vector2 direcaoDash;
+
+    float direcaoY;
+    bool tocandoParede = false;
+    bool escalando = false;
+    public float velocidadeParede;
+
+    public float tempoEscalada;
+    float tempoEscaladaPassado = 0;
+
+    public float gravidadeMultiplicador;
+    bool pulando = false;
+
+    int direcaoParede;
+    public float tempoPuloParede;
+
+    public float tempoCoyote;
+    float tempoCoyotePassado = 0;
+
+    public float tempoBufferingPulo;
+    float tempoBufferingPuloPassado = 0;
+
+    public float puloParedeLerp;
 
     void Start()
     {
@@ -49,218 +49,189 @@ public class PlayerScript : MonoBehaviour
         col = GetComponent<BoxCollider2D>();
     }
 
-    // Update is called once per frame
     void Update()
     {
-        //Salva valores para usar mais vezes durante o frame.
-        chao = IsGrounded(); 
-        int paredeValor = isOnWall();
-        wall = paredeValor != 0? true : false; 
+        noChao = IsGrounded();
+        Debug.Log(noChao);
+        direcao = Input.GetAxisRaw("Horizontal");
+        direcaoY = Input.GetAxisRaw("Vertical");
+        direcaoParede = ChecaTocandoParede();
+        tocandoParede = direcaoParede != 0;
 
-
-        //Reseta o CoyoteTime, tempo de escalada e o dash
-        if (chao)
+        if (noChao)
         {
-            coyoteTimeElapsed = coyoteTime; 
-            climbTimeElapsed = climbTime; 
-            if(!dashing)
-                canDash = true;
+            if (!podeDarDash)
+            {
+                podeDarDash = true;
+            }
+            if (!escalando)
+            {
+                tempoEscaladaPassado = tempoEscalada;
+            }
+            rb.gravityScale = 1;
+            if (tempoCoyote != tempoCoyotePassado)
+            {
+                tempoCoyotePassado = tempoCoyote;
+            }
         }
 
-        //Input para o pulo
-        if(Input.GetKeyDown(KeyCode.C)) 
+        if (Input.GetKeyDown(KeyCode.C))
         {
-            respostaTimeElapsed = respostaTime; 
+            tempoBufferingPuloPassado = tempoBufferingPulo;
+        }
+        if (tempoBufferingPuloPassado > 0)
+        {
+            tempoBufferingPuloPassado -= Time.deltaTime;
+            Pulo();
         }
 
-        //Executa o pulo
-        if(respostaTimeElapsed > 0) 
-        {
-            respostaTimeElapsed -= Time.deltaTime;
 
-            Jump(paredeValor);
-        }
-
-        //Decresce o CoyoteTime
-        if(coyoteTimeElapsed > 0)
-        {
-            coyoteTimeElapsed -= Time.deltaTime; 
-        }
-
-        //Input do dash
         if (Input.GetKeyDown(KeyCode.X))
         {
-            dashRespostaTimeElapsed = dashRespostaTime;
-        }
-
-        //Executa o dash
-        if (dashRespostaTimeElapsed > 0) 
-        {
-            dashRespostaTimeElapsed -= Time.deltaTime;
             Dash();
         }
 
-        //Descresce a estamina de acordo com o tempo em parede
-        if (wall)
+        if (Input.GetKeyDown(KeyCode.Z) && tocandoParede)
         {
-            if (climbTimeElapsed > 0)
-                climbTimeElapsed -= Time.deltaTime;
+            EscalarParede();
+        }
+        else if ((Input.GetKeyUp(KeyCode.Z) || !tocandoParede) && escalando)
+        {
+            PararEscalarParede();
+        }
+        if (escalando)
+        {
+            if (tempoEscaladaPassado < 0)
+            {
+                PararEscalarParede();
+            }
             else
-                wall = false;
+            {
+                tempoEscaladaPassado -= Time.deltaTime;
+            }
         }
 
-        //Input para escalar a parede
-        if(Input.GetKeyDown(KeyCode.Z) && wall)
+        if (pulando && !Input.GetKey(KeyCode.C) && movimentacaoPadrao)
         {
-            WallClimb(); 
-        } else if((Input.GetKeyUp(KeyCode.Z) || !wall) && parede)
-        {
-            StopWallClimb();
+            rb.gravityScale = gravidadeMultiplicador;
+            pulando = false;
         }
-
-
-        //Aumenta a escala da gravidade ao cair, melhorando o pulo
-        if (rb.velocity.y < -0.5f && mover && !(coyoteTimeElapsed > 0))
+        if (rb.velocity.y < -0.5f && movimentacaoPadrao && tempoCoyotePassado <= 0)
         {
-            rb.gravityScale = fallGravityMultiplier;
+            rb.gravityScale = gravidadeMultiplicador;
             pulando = false;
         }
 
-        //Aumenta a gravidade caso o jogador pare de apertar a tecla, limitando a altura do pulo
-        if (pulando && !Input.GetKey(KeyCode.C) && mover)
+        if (tempoCoyotePassado > 0)
         {
-            rb.gravityScale = midFallGravityMultiplier;
-            pulando = false;
+            tempoCoyotePassado -= Time.deltaTime;
         }
-
-
-
-        //Inputs de movimentação
-        direction = Input.GetAxisRaw("Horizontal");
-        directionY = Input.GetAxisRaw("Vertical");  
 
     }
 
-    //Aqui, a função é chamada em intervalos fixos. Assim, é mais confiável para executar os comandos do Rigidbody.
-    private void FixedUpdate()
+    void FixedUpdate()
     {
-        if (mover)
+        if (movimentacaoPadrao)
         {
-            if (chao)
-                rb.velocity = new Vector2(direction * velocidade, rb.velocity.y); //Movimentação padrão
+            if (noChao)
+                rb.velocity = new Vector2(direcao * velocidade, rb.velocity.y);
             else
-                rb.velocity = Vector2.Lerp(rb.velocity, new Vector2(direction * velocidade, rb.velocity.y), wallJumpLerp * Time.deltaTime);
-        } else if(dashing)
+                rb.velocity = Vector2.Lerp(rb.velocity, new Vector2(direcao * velocidade, rb.velocity.y), puloParedeLerp * Time.deltaTime);
+        }
+        else if (dashing)
         {
-            rb.velocity = directionVector * dashForce; //Executa o dash
-        } else if (parede)
+            rb.velocity = direcaoDash * forcaDash;
+        }
+        else if (escalando)
         {
-            rb.velocity = new Vector2(0, directionY * wallSpeed); //Executa a escalada
+            rb.velocity = new Vector2(0, direcaoY * velocidadeParede);
         }
     }
 
-    void Jump(int paredeValor) //Executa o pulo
+    void Pulo()
     {
-        if (coyoteTimeElapsed > 0) //Primeiro pulo
+        if (dashing)
+            return;
+        if (tempoCoyotePassado > 0)
         {
-            coyoteTimeElapsed = 0;
+            pulando = true;
+            rb.velocity = new Vector2(rb.velocity.x, 0);
+            rb.AddForce(Vector2.up * forcaPulo, ForceMode2D.Impulse);
+            tempoCoyotePassado = 0;
+            tempoBufferingPuloPassado = 0;
+        }
+        else if (tocandoParede)
+        {
             rb.gravityScale = 1;
+            movimentacaoPadrao = false;
             pulando = true;
-            rb.velocity = new Vector2(rb.velocity.x, 0); //Reseta a velocidade no eixo Y, para que o pulo tenha sempre a mesma altura
-            rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse); 
-            respostaTimeElapsed = 0; 
-        }
-        else if (wall) //Pulo na parede
-        {
-            mover = false; 
-            rb.gravityScale = 1; 
-            pulando = true;
-            parede = false;
-            coyoteTimeElapsed = 0;
-            respostaTimeElapsed = 0;
-
-            Vector2 direcaoPulo = new Vector2(paredeValor, 1).normalized;
-            if (Input.GetKey(KeyCode.Z) && parede && direction != paredeValor)
+            Vector2 direcaoPulo = new Vector2(direcaoParede, 1).normalized;
+            if (Input.GetKey(KeyCode.Z) && escalando && direcao != direcaoParede)
             {
                 direcaoPulo = Vector2.up;
             }
-            rb.velocity = new Vector2(0, 0); //Reseta a velocidade no eixo Y, para que o pulo tenha sempre a mesma altura
-            rb.AddForce(direcaoPulo * jumpForce, ForceMode2D.Impulse); //Função do pulo. 
+            escalando = false;
+            rb.velocity = new Vector2(0, 0);
+            rb.AddForce(direcaoPulo * forcaPulo, ForceMode2D.Impulse);
             StartCoroutine(PosWallJump());
+            tempoCoyotePassado = 0;
+            tempoBufferingPuloPassado = 0;
         }
-    } 
-
-    void Dash() //Inicia o dash
-    {
-        if (canDash && !dashing)
-        {
-            directionVector = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical")).normalized; //Recebe o vetor dire��o para direcionar o dash
-            if (directionVector != Vector2.zero)
-            {
-                mover = false;
-                dashing = true; 
-                canDash = false; 
-                parede = false; 
-                rb.gravityScale = 0; 
-                dashRespostaTimeElapsed = 0;
-                StartCoroutine("PosDash");
-            }
-        }
-    } 
-
-    void WallClimb() //Setup da escalada
-    {
-        parede = true; 
-        mover = false; 
-        dashing = false; 
-        rb.gravityScale = 0; 
-        StopAllCoroutines(); 
-    } 
-
-    void StopWallClimb() //Para a escalada
-    {
-        parede = false; 
-        mover = true; 
-        rb.gravityScale = 1;  
-    } 
-
-    IEnumerator PosDash() //Retorna a movimentação normal após o dash
-    {
-        Vector2 alvo = new Vector2(directionVector.x * velocidade, directionVector.y * (dashForce / 2)); 
-
-        yield return new WaitForSeconds(dashTime); 
-        dashing = false;  
-        rb.gravityScale = 1; 
-
-        mover = true; 
-        rb.velocity = alvo; 
     }
-
-    IEnumerator PosWallJump() //Função após o pulo na parede, retornando para a movimentação normal e voltando para a parede se necessário
+    IEnumerator PosWallJump()
     {
-        yield return new WaitForSeconds(wallJumpTime);
-        if (Input.GetKey(KeyCode.Z))
+        yield return new WaitForSeconds(tempoPuloParede);
+        if (Input.GetKey(KeyCode.Z) && tocandoParede)
         {
-            parede = true;
-            WallClimb();
-        } else
+            EscalarParede();
+        }
+        else
         {
-            mover = true;
+            movimentacaoPadrao = true;
         }
     }
 
-    bool IsGrounded() //Retorna se a personagem está no chão
+    bool IsGrounded()
     {
         float extraHeight = 0.1f;
-        bool retorno = Physics2D.BoxCast(col.bounds.center, col.bounds.size, 0, Vector2.down, extraHeight, groundLayer);
+        bool retorno = Physics2D.BoxCast(col.bounds.center, new Vector2(col.bounds.size.x - 0.005f, col.bounds.size.y), 0, Vector2.down, extraHeight, layerChao);
         return retorno;
     }
 
-    int isOnWall() //retorna a direção contrária à parede encostada. 0 se não existir parede. 
+    void Dash()
     {
-        float extraHeight = 0.1f; //Espessura do colisor além da colisão do jogador.
-        bool retorno = Physics2D.BoxCast(col.bounds.center, col.bounds.size, 0, Vector2.left, extraHeight, groundLayer);
-        bool retorno2 = Physics2D.BoxCast(col.bounds.center, col.bounds.size, 0, Vector2.right, extraHeight, groundLayer);
+        if (dashing || !podeDarDash)
+        {
+            return;
+        }
+        direcaoDash = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical")).normalized;
+        if (direcaoDash == Vector2.zero)
+        {
+            return;
+        }
+        dashing = true;
+        movimentacaoPadrao = false;
+        podeDarDash = false;
+        rb.gravityScale = 0;
+        StartCoroutine("PosDash");
+    }
+    IEnumerator PosDash()
+    {
+        Vector2 alvo = new Vector2(direcaoDash.x * velocidade, direcaoDash.y * (forcaDash / 2));
+
+        yield return new WaitForSeconds(tempoDash);
+
+        rb.gravityScale = 1;
+        movimentacaoPadrao = true;
+        rb.velocity = alvo;
+        dashing = false;
+    }
+
+    int ChecaTocandoParede()
+    {
+        float extraHeight = 0.15f;
+        bool retorno = Physics2D.BoxCast(col.bounds.center, col.bounds.size, 0, Vector2.left, extraHeight, layerChao);
+        bool retorno2 = Physics2D.BoxCast(col.bounds.center, col.bounds.size, 0, Vector2.right, extraHeight, layerChao);
         if (retorno)
         {
             return 1;
@@ -271,5 +242,19 @@ public class PlayerScript : MonoBehaviour
         }
         else
             return 0;
+    }
+    void EscalarParede()
+    {
+        escalando = true;
+        movimentacaoPadrao = false;
+        dashing = false;
+        rb.gravityScale = 0;
+        StopAllCoroutines();
+    }
+    void PararEscalarParede()
+    {
+        escalando = false;
+        movimentacaoPadrao = true;
+        rb.gravityScale = 1;
     }
 }

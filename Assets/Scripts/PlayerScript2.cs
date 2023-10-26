@@ -1,12 +1,13 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-
+/* Esse Script √© a vers√£o melhorada daquele produzido durante o minicurso. Nele, voc√™ encontra as anima√ß√µes e algumas part√≠culas que
+ * fazem esse prot√≥tipo se parecer mais com Celeste. 
+ */ 
 public class PlayerScript2 : MonoBehaviour
 {
-    //Script do projeto melhorado, para ajudar os alunos a continuar
-
-    [Header("MovimentaÁ„o Padr„o")]
+    //O comando Header apenas cria um cabe√ßalho na Unity, servindo apenas para facilitar a compreens√£o
+    [Header("Movimenta√ß√£o Padr√£o")] //Vari√°veis para a movimenta√ß√£o do jogador
     [SerializeField] LayerMask groundLayer;
     public float speed;
     public float jumpForce;
@@ -16,7 +17,7 @@ public class PlayerScript2 : MonoBehaviour
     public float climbTime;
     public float wallJumpTime;
 
-    [Header("Booleanas de controle")]
+    [Header("Booleanas de controle")] //Vari√°veis que servem para o controle de cada movimenta√ß√£o e para informar o Animator
     public bool dashing = false;
     public bool canDash = true;
     public bool wall = false;
@@ -25,20 +26,19 @@ public class PlayerScript2 : MonoBehaviour
     public bool chao = true;
     public bool parede = false;
 
-    [Header("Melhorar Respostas do jogo")]
+    [Header("Melhorar Respostas do jogo")] //Vari√°veis para CoyoteTime, Jump Buffering e etc...
     public float respostaTime;
     public float coyoteTime;
     public float dashRespostaTime;
     public float wallJumpRespostaTime;
-
     float respostaTimeElapsed = 0, coyoteTimeElapsed = 0, climbTimeElapsed = 0, dashRespostaTimeElapsed = 0;
 
-    [Header("Controle no ar da personagem")]
+    [Header("Controle no ar da personagem")] //Melhora no controle no ar
     public float wallJumpLerp;
     public float fallGravityMultiplier;
     public float midFallGravityMultiplier;
 
-
+    //Vari√°veis que n√£o precisam ser mostradas
     Rigidbody2D rb;
     BoxCollider2D col;
     float direction, directionY;
@@ -46,69 +46,64 @@ public class PlayerScript2 : MonoBehaviour
     int paredeValor;
     Vector2 posInicial;
 
-    Animator anim;
-    SpriteRenderer sp;
+    Animator anim; //Essa vari√°vel faz refer√™ncia ao Animator, que √© respons√°vel por rodar e alternar as anima√ß√µes
+    SpriteRenderer sp; //Essa vari√°vel faz refer√™ncia ao sprite. Aqui, usamos ela apenas para inverter no Eixo X (virar para direita ou esquerda)
 
-    [Header("FinalizaÁ„o")]
+    [Header("Finaliza√ß√£o")] //Vari√°veis que servem para adicionar detalhes
     [SerializeField] Particula particulaPular, particulaDash;
-
+    [SerializeField] Color corPosDash;
+    [SerializeField] Material flashMaterial, normalMaterial;
     void Start()
     {
-        //Pega os componentes para que n„o precisarmos colocar dentro do editor. 
+        //Pega os componentes para que nÔøΩo precisarmos colocar dentro do editor. 
         rb = GetComponent<Rigidbody2D>();
         col = GetComponent<BoxCollider2D>();
         anim = GetComponentInChildren<Animator>();
         sp = GetComponentInChildren<SpriteRenderer>();
+        normalMaterial = sp.material;
         posInicial = transform.position;
     }
-
-    // Update is called once per frame
     void Update()
     {
-        chao = IsGrounded(); //Salva em uma vari·vel, para que n„o seja preciso chamar a funÁ„o mais de uma vez por frame.
+        chao = IsGrounded(); //Salva em uma vari√°vel, para que nÔøΩo seja preciso chamar a funÔøΩÔøΩo mais de uma vez por frame.
         paredeValor = isOnWall();
-        wall = paredeValor != 0; //Salva o valor da funÁ„o em uma vari·vel, para n„o chamar mais de uma vez por frame.
-
+        wall = paredeValor != 0; //Salva o valor da fun√ß√£o em uma variÔøΩvel, para nÔøΩo chamar mais de uma vez por frame.
         if (chao)
         {
             rb.gravityScale = 1;
             if(coyoteTimeElapsed != coyoteTime)
-                coyoteTimeElapsed = coyoteTime; //Caso esteja no ch„o, reseta o CoyoteTime
+                coyoteTimeElapsed = coyoteTime; //Caso esteja no chÔøΩo, reseta o CoyoteTime
 
             if(climbTimeElapsed != climbTime)
                 climbTimeElapsed = climbTime; //Reseta o tempo de parede
 
-            if (!dashing)
-                canDash = true; //Caso n„o esteja dando Dash, reabilita o dash. 
+            if (!dashing && !canDash)
+            {
+                ResetDash();
+            }
         }
-
         if (Input.GetKeyDown(KeyCode.C)) //Input para o pulo
         {
             respostaTimeElapsed = respostaTime;
         }
-
         if (respostaTimeElapsed > 0) //Executa o pulo 
         {
             respostaTimeElapsed -= Time.deltaTime; 
             Jump(paredeValor);
         }
-
         if (coyoteTimeElapsed > 0)
         {
             coyoteTimeElapsed -= Time.deltaTime; //Decresce no CoyoteTime.
         }
-
         if (Input.GetKeyDown(KeyCode.X))
         {
             dashRespostaTimeElapsed = dashRespostaTime;
         }
-
         if (dashRespostaTimeElapsed > 0) //Input para o dash
         {
             dashRespostaTimeElapsed -= Time.deltaTime;
             Dash();
         }
-
         if (wall)
         {
             if (climbTimeElapsed > 0)
@@ -116,14 +111,13 @@ public class PlayerScript2 : MonoBehaviour
                 climbTimeElapsed -= Time.deltaTime;
             }
             else
-                wall = false;
+                StopWallClimb();
 
             if(rb.velocity.y < 0)
             {
                 rb.velocity = new Vector2(rb.velocity.x, rb.velocity.y * 0.98f);
             }
         }
-
         if (Input.GetKeyDown(KeyCode.Z) && wall)
         {
             WallClimb();
@@ -132,33 +126,28 @@ public class PlayerScript2 : MonoBehaviour
         {
             StopWallClimb();
         }
-
         if(rb.velocity.y < -0.5f && mover && !(coyoteTimeElapsed > 0))
         {
             rb.gravityScale = fallGravityMultiplier;
             pulando = false;
         }
-
         if(pulando && !Input.GetKey(KeyCode.C) && mover)
         {
             rb.gravityScale = midFallGravityMultiplier;
             pulando = false;
         }
-
         direction = Input.GetAxisRaw("Horizontal"); //Input do eixo X. 
         directionY = Input.GetAxisRaw("Vertical"); //Input do eixo Y. 
-
         AtualizaAnimator();
     }
-
-    void AtualizaAnimator() //Atualiza os valores do animator para as animaÁıes funcionarem corretamente
+    void AtualizaAnimator() //Atualiza os valores do animator para as animaÔøΩÔøΩes funcionarem corretamente
     {
         anim.SetFloat("Velocidade", Mathf.Abs(rb.velocity.x));
         anim.SetBool("Dashing", dashing);
         anim.SetBool("NoAr", !chao);
         anim.SetBool("WallSlide", wall);
         anim.SetBool("WallClimb", rb.velocity.y > 0.5);
-        if (rb.velocity.x > 0 || paredeValor == -1)
+        if (rb.velocity.x > 0 || paredeValor == -1) //Inverte o sprite dependendo das circunst√¢ncias. 
         {
             sp.flipX = false;
         } else if(rb.velocity.x < 0 || paredeValor == 1)
@@ -166,27 +155,25 @@ public class PlayerScript2 : MonoBehaviour
             sp.flipX = true;
         }
     }
-
-    //Aqui, a funÁ„o È chamada em tempos fixos. Assim, È mais confi·vel para aplicar comandos envolvendo a fÌsica. 
+    //Aqui, a funÔøΩÔøΩo ÔøΩ chamada em tempos fixos. Assim, ÔøΩ mais confiÔøΩvel para aplicar comandos envolvendo a fÔøΩsica. 
     private void FixedUpdate()
     {
         if (mover)
         {
             if (chao)
-                rb.velocity = new Vector2(direction * speed, rb.velocity.y); //MovimentaÁ„o padr„o
+                rb.velocity = new Vector2(direction * speed, rb.velocity.y); //MovimentaÔøΩÔøΩo padrÔøΩo
             else
                 rb.velocity = Vector2.Lerp(rb.velocity, new Vector2(direction * speed, rb.velocity.y), wallJumpLerp * Time.deltaTime);
         }
         else if (dashing)
         {
-            rb.velocity = directionVector * dashForce; //FunÁ„o do dash
+            rb.velocity = directionVector * dashForce; //FunÔøΩÔøΩo do dash
         }
         else if (parede)
         {
-            rb.velocity = new Vector2(0, directionY * wallSpeed); //FunÁ„o de subir a parede
+            rb.velocity = new Vector2(0, directionY * wallSpeed); //FunÔøΩÔøΩo de subir a parede
         }
     }
-
     void Jump(int paredeValor)
     {
         if (dashing)
@@ -198,7 +185,7 @@ public class PlayerScript2 : MonoBehaviour
             respostaTimeElapsed = 0;
             rb.velocity = new Vector2(rb.velocity.x, 0); //Reseta a velocidade no eixo Y, para que o pulo tenha sempre a mesma altura
             particulaPular.PlayParticula(transform.position);
-            rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse); //FunÁ„o do pulo. 
+            rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse); //FunÔøΩÔøΩo do pulo. 
         }
         else if (wall) //Pulo na parede
         {
@@ -215,64 +202,61 @@ public class PlayerScript2 : MonoBehaviour
             Debug.Log("WallJump " + direcaoPulo);
             parede = false;
             rb.velocity = new Vector2(0, 0); //Reseta a velocidade no eixo Y, para que o pulo tenha sempre a mesma altura
-            rb.AddForce(direcaoPulo * jumpForce, ForceMode2D.Impulse); //FunÁ„o do pulo. 
+            rb.AddForce(direcaoPulo * jumpForce, ForceMode2D.Impulse); //FunÔøΩÔøΩo do pulo. 
             StartCoroutine(PosWallJump());
-            respostaTimeElapsed = 0; //Impede que essa parte do cÛdigo seja chamada novamente. 
+            respostaTimeElapsed = 0; //Impede que essa parte do cÔøΩdigo seja chamada novamente. 
         }
     } //Pulo da personagem
-
     void Dash()
     {
         if (canDash && !dashing)
         {
-            directionVector = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical")).normalized; //Recebe o vetor direÁ„o para direcionar o dash
+            directionVector = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical")).normalized; //Recebe o vetor direÔøΩÔøΩo para direcionar o dash
             if (directionVector != Vector2.zero)
             {
                 mover = false; //Impede que a personagem se mova durante o dash
-                dashing = true; //Informa que a personagem est· se movendo atravÈs da vari·vel
-                canDash = false; //Impede que dashes sejam contÌnuos
+                dashing = true; //Informa que a personagem estÔøΩ se movendo atravÔøΩs da variÔøΩvel
+                canDash = false; //Impede que dashes sejam contÔøΩnuos
                 parede = false; //Caso esteja na parede, sai dela
                 rb.gravityScale = 0; //Evita que a gravidade esteja errada
                 dashRespostaTimeElapsed = 0;
                 StartCoroutine("PosDash"); //Inicia coroutine que vai fazer a contagem do tempo
+                sp.color = corPosDash;
                 
                 particulaDash.RotateParticula(directionVector, transform.position);
             }
         }
     } //Dash da personagem
-
     void WallClimb()
     {
-        parede = true; //Informa que a personagem est· na parede
-        mover = false; //Informa que a personagem n„o pode se mover de maneira convencional
-        dashing = false; //Informa que a personagem n„o est· mais no dash
-        rb.gravityScale = 0; //Como a gravidade est· em -30, colocar rb.velocity.y = 0 n„o funcionar· para parar a personagem.
-        StopAllCoroutines(); //Caso ela estivesse no dash e apertar Z, para o dash. 
+        parede = true; //Informa que a personagem estÔøΩ na parede
+        mover = false; //Informa que a personagem nÔøΩo pode se mover de maneira convencional
+        dashing = false; //Informa que a personagem nÔøΩo estÔøΩ mais no dash
+        rb.gravityScale = 0; //Como a gravidade estÔøΩ em -30, colocar rb.velocity.y = 0 nÔøΩo funcionarÔøΩ para parar a personagem.
+        StopAllCoroutines(); //Caso ela estivesse no dash e apertar Z, parando o dash. 
+        sp.material = normalMaterial;
         Debug.Log("Parou as coroutines");
-    } //Faz a personagem comeÁar a andar na parede
-
+    } //Faz a personagem comeÔøΩar a andar na parede
     void StopWallClimb()
     {
         parede = false; //Informa que a personagem saiu da parede
         mover = true; //Informa que a personagem pode se movimentar de maneira convencional agora.
         rb.gravityScale = 1; //Retorna a gravidade. 
     } //Para de fazer a personagem andar na parede. 
-
-    IEnumerator PosDash() //FunÁ„o chamada apÛs o dash, fazendo uma transiÁ„o para a movimentaÁ„o normal. 
+    IEnumerator PosDash() //FunÔøΩÔøΩo chamada apÔøΩs o dash, fazendo uma transiÔøΩÔøΩo para a movimentaÔøΩÔøΩo normal. 
     {
-        Vector2 alvo = new Vector2(directionVector.x * speed, directionVector.y * (dashForce / 2)); //Salva o vetor da velocidade que dever· ser o final da transiÁ„o
-        //O eixo X retornar· para a movimentaÁ„o padr„o desejada durante o dash. 
-        //O exio Y retornar· para metade da velocidade do dash, fazendo com que ainda tenha forÁa para seguir um tempo mas que n„o seja pouca a ponto de parar o momento. 
+        Vector2 alvo = new Vector2(directionVector.x * speed, directionVector.y * (dashForce / 2)); //Salva o vetor da velocidade que deverÔøΩ ser o final da transiÔøΩÔøΩo
+        //O eixo X retornarÔøΩ para a movimentaÔøΩÔøΩo padrÔøΩo desejada durante o dash. 
+        //O exio Y retornarÔøΩ para metade da velocidade do dash, fazendo com que ainda tenha forÔøΩa para seguir um tempo mas que nÔøΩo seja pouca a ponto de parar o momento. 
 
         yield return new WaitForSeconds(dashTime); //Espera o final do dash.
-        dashing = false; //Diz que a personagem n„o est· mais dando dash. 
+        dashing = false; //Diz que a personagem nÔøΩo estÔøΩ mais dando dash. 
         rb.gravityScale = 1; //Retorna a gravidade
 
-        mover = true; //Reabilita a movimentaÁ„o novamente
-        rb.velocity = alvo; //Retorna a velocidade para o um valor de transiÁ„o. 
+        mover = true; //Reabilita a movimentaÔøΩÔøΩo novamente
+        rb.velocity = alvo; //Retorna a velocidade para o um valor de transiÔøΩÔøΩo. 
     }
-
-    IEnumerator PosWallJump() //FunÁ„o apÛs o pulo na parede, retornando para a movimentaÁ„o normal e voltando para a parede se necess·rio
+    IEnumerator PosWallJump() //FunÔøΩÔøΩo apÔøΩs o pulo na parede, retornando para a movimentaÔøΩÔøΩo normal e voltando para a parede se necessÔøΩrio
     {
         yield return new WaitForSeconds(wallJumpTime);
         if (Input.GetKey(KeyCode.Z))
@@ -285,16 +269,25 @@ public class PlayerScript2 : MonoBehaviour
             mover = true;
         }
     }
-
-
-    bool IsGrounded() //A funÁ„o gera um quadrado no pÈ da personagem do tamanho do colisor, e verifica se est· encostando no ch„o.
+    public void ResetDash() //Essa fun√ß√£o √© chamada quando o jogador retorna ao ch√£o ou pega um cristal
+    {
+        canDash = true;
+        StartCoroutine(FlashColor());
+    }
+    IEnumerator FlashColor() //Essa fun√ß√£o √© respons√°vel por colocar um frame todo branco no personagem, quando ele recupera o dash.
+    {
+        sp.material = flashMaterial;
+        sp.color = Color.white;
+        yield return new WaitForSeconds(0.1f);
+        sp.material = normalMaterial;
+    }
+    bool IsGrounded() //A funÔøΩÔøΩo gera um quadrado no pÔøΩ da personagem do tamanho do colisor, e verifica se estÔøΩ encostando no chÔøΩo.
     {
         float extraHeight = 0.1f;
         bool retorno = Physics2D.BoxCast(col.bounds.center, new Vector2(col.bounds.size.x-0.005f, col.bounds.size.y), 0, Vector2.down, extraHeight, groundLayer);
         return retorno;
     }
-
-    int isOnWall() //A funÁ„o gera dois quadrados aos lados da personagem e verifica se est„o enconstsando nas paredes. 
+    int isOnWall() //A funÔøΩÔøΩo gera dois quadrados aos lados da personagem e verifica se estÔøΩo enconstsando nas paredes. 
     {
         float extraHeight = 0.15f;
         bool retorno = Physics2D.BoxCast(col.bounds.center, col.bounds.size, 0, Vector2.left, extraHeight, groundLayer); //Quadrado da esquerda
@@ -310,7 +303,7 @@ public class PlayerScript2 : MonoBehaviour
         else
             return 0;
     }
-    private void OnCollisionEnter2D(Collision2D collision)
+    private void OnCollisionEnter2D(Collision2D collision) //Caso o jogador fa√ßa colis√£o com um inimigo / buraco, ele retorna aqui. 
     {
         if(collision.gameObject.layer == 7)
         {
